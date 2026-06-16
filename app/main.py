@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import chat, health, intent, knowledge
+from app.api import eval as eval_api
 from app.config import settings
 
 app = FastAPI(title="Ragent Python", version="0.1.0")
@@ -21,6 +22,7 @@ app.add_middleware(
 app.include_router(health.router, prefix=settings.app_context_path)
 app.include_router(knowledge.router, prefix=settings.app_context_path)
 app.include_router(intent.router, prefix=settings.app_context_path)
+app.include_router(eval_api.router, prefix=settings.app_context_path)
 app.include_router(chat.router, prefix=settings.app_context_path)
 
 

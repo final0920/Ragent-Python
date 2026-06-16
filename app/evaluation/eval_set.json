@@ -1,0 +1,34 @@
+[
+  {
+    "id": "q1",
+    "query": "什么是RAG？它解决什么问题？",
+    "ground_truth": "RAG 即检索增强生成，先从知识库检索相关片段再交给大模型生成，解决上下文窗口限制与检索精度问题，降低幻觉与成本。",
+    "intent_l1": "基础概念",
+    "intent_l2": "RAG定义",
+    "requires_rag": true
+  },
+  {
+    "id": "q2",
+    "query": "为什么要做文档分块？chunkSize 怎么定？",
+    "ground_truth": "整篇文档粒度太粗无法精准检索，需分块；chunkSize 常见 200~1000 字符、问答场景偏小，overlap 取其 10%~25% 防止边界信息被切断。",
+    "intent_l1": "数据处理",
+    "intent_l2": "分块",
+    "requires_rag": true
+  },
+  {
+    "id": "q3",
+    "query": "混合检索里 RRF 是怎么融合的？为什么不用分数加权？",
+    "ground_truth": "RRF 按各路排名计算 1/(k+rank) 求和(k=60)，只看排名不看分数，规避不同检索分数量纲不一致、归一化敏感的问题。",
+    "intent_l1": "检索",
+    "intent_l2": "融合",
+    "requires_rag": true
+  },
+  {
+    "id": "q4",
+    "query": "今天天气怎么样？",
+    "ground_truth": "该问题与知识库无关，应礼貌说明无法回答或转其它渠道。",
+    "intent_l1": "闲聊",
+    "intent_l2": "越界",
+    "requires_rag": false
+  }
+]

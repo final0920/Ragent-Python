@@ -26,6 +26,8 @@ dependencies = [
 
 [dependency-groups]
 dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.7"]
+# 评测重依赖单独成组：uv sync --group eval
+eval = ["ragas>=0.2.8", "datasets>=3.0", "langchain-openai>=0.2"]
 
 [tool.uv]
 package = true

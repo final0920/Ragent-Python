@@ -41,4 +41,22 @@ docker-compose.yml
 - `app/graph/pipeline.py`
   - `async def stream_chat(session, conversation_id: str, question: str) -> AsyncIterator[dict]`（LangGraph 编排，yield SSE 事件）
 
+## P9 RAGAS 评测
+
+ragas 为可选重依赖，单独装：`uv sync --group eval`。四段流程：
+
+```bash
+uv run python -m app.evaluation init                                   # 写种子评估集 app/evaluation/eval_set.json
+uv run python -m app.evaluation run   --out runs/base.json             # 录制(需在线服务+已摄取数据)
+uv run python -m app.evaluation score --run runs/base.json --out runs/base_scores.json --ragas-n 3
+uv run python -m app.evaluation report --scores runs/base_scores.json --out-dir runs/base_report
+# 基线 vs 优化对比(改 .env 后再跑一组 opt)：
+uv run python -m app.evaluation compare --a runs/base_scores.json --b runs/opt_scores.json
+```
+
+- 五指标：faithfulness / answer_relevancy / answer_correctness / context_precision / context_recall。
+- judge LLM 与 embeddings 走本地 OpenAI 兼容端点（同 .env 配置）。
+- **诚实量化建议**：先关掉 RRF/重排跑一组基线，再开启跑一组优化，用 `compare` 得到真实提升——这是简历里"准确率 X%→Y%"的正确测法。
+- 单题快速手测：`GET /api/ragent/rag/eval?question=...`（返回答案+上下文+意图，不跑 RAGAS）。
+
 > 复刻设计依据见 `../Ragent-Python全栈复刻-实施计划.md`。
