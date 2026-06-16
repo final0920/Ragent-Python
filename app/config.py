@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     rag_intent_max_count: int = 3          # 封顶
     rag_intent_directed_min: float = 0.4   # KB 叶子达到则定向检索其 collection
 
+    # P8 MCP 工具调用（默认关闭；开启需 uv sync --group mcp 并启动 mcp_server）
+    mcp_enabled: bool = False
+    mcp_server_url: str = "http://127.0.0.1:9099/mcp"
+
 
 @lru_cache
 def get_settings() -> Settings:

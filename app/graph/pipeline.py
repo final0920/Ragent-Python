@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.core import intent as intent_mod
+from app.core import mcp as mcp_mod
 from app.core import memory as memory_mod
 from app.core import retrieve as retrieve_mod
 from app.core.types import RetrievedChunk
@@ -37,6 +38,8 @@ class ChatState(TypedDict, total=False):
     history: list[dict]
     intents: list[dict]
     collections: list[str]
+    mcp_tools: list[str]
+    mcp_context: str
     use_global: bool
     chunks: list[RetrievedChunk]
     messages: list[dict]
@@ -66,7 +69,23 @@ async def _resolve_intents(state: ChatState) -> ChatState:
         r = await intent_mod.route(state["session"], state["question"])
     except Exception:
         r = {"intents": [], "collections": [], "use_global": True}
-    return {"intents": r["intents"], "collections": r["collections"], "use_global": r["use_global"]}
+    return {
+        "intents": r["intents"],
+        "collections": r["collections"],
+        "mcp_tools": r.get("mcp_tools", []),
+        "use_global": r["use_global"],
+    }
+
+
+async def _mcp_tools(state: ChatState) -> ChatState:
+    tools = state.get("mcp_tools") or []
+    if not tools:
+        return {"mcp_context": ""}
+    try:
+        ctx = await mcp_mod.run_mcp(state["question"], tools)
+    except Exception:
+        ctx = ""
+    return {"mcp_context": ctx}
 
 
 async def _retrieve_one(session, query: str, collection: str) -> list[RetrievedChunk]:
@@ -110,6 +129,8 @@ async def _build_prompt(state: ChatState) -> ChatState:
     chunks = state.get("chunks") or []
     ctx = "\n\n".join(f"[{i + 1}] {c.content}" for i, c in enumerate(chunks))
     messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if state.get("mcp_context"):
+        messages.append({"role": "system", "content": f"【工具实时数据】\n{state['mcp_context']}"})
     if ctx:
         messages.append({"role": "system", "content": f"【知识库内容】\n{ctx}"})
     if state.get("summary"):
@@ -123,11 +144,13 @@ def build_graph():
     g = StateGraph(ChatState)
     g.add_node("load_memory", _load_memory)
     g.add_node("resolve_intents", _resolve_intents)
+    g.add_node("mcp_tools", _mcp_tools)
     g.add_node("retrieve", _retrieve)
     g.add_node("build_prompt", _build_prompt)
     g.add_edge(START, "load_memory")
     g.add_edge("load_memory", "resolve_intents")
-    g.add_edge("resolve_intents", "retrieve")
+    g.add_edge("resolve_intents", "mcp_tools")
+    g.add_edge("mcp_tools", "retrieve")
     g.add_edge("retrieve", "build_prompt")
     g.add_edge("build_prompt", END)
     return g.compile()

@@ -52,6 +52,19 @@ npm run build      # 产物 frontend/dist
 
 页面：智能问答（SSE 流式 + 停止 + 引用/意图展示）、知识库（建库/列表/上传）、意图树（叶子意图增查）。
 
+## P8 MCP 工具调用
+
+知识库答不了的问题可路由到 MCP 工具查实时数据。默认关闭，开启步骤：
+
+```bash
+uv sync --group mcp
+uv run python mcp_server/server.py      # 启动工具服务 127.0.0.1:9099/mcp（sales_query/ticket_query/weather_query）
+# .env 设 MCP_ENABLED=true（MCP_SERVER_URL 默认 http://127.0.0.1:9099/mcp）
+# 在意图树新增 kind=MCP 的叶子，mcp_tool_id 填工具名(如 weather_query)
+```
+
+链路：意图命中 MCP 叶子 → LLM 按工具 inputSchema 抽参 → 调用工具 → 结果作为【工具实时数据】注入 Prompt。服务未起/未装时自动降级（不影响 KB 问答）。
+
 ## P9 RAGAS 评测
 
 ragas 为可选重依赖，单独装：`uv sync --group eval`。四段流程：

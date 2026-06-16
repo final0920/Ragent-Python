@@ -83,12 +83,16 @@ async def route(session, query: str) -> dict:
 
     resolved = resolve(await classify(query, leaves))
     collections: list[str] = []
+    mcp_tools: list[str] = []
     for node, score in resolved:
         if node.kind == 0 and node.collection_name and score >= settings.rag_intent_directed_min:
             if node.collection_name not in collections:
                 collections.append(node.collection_name)
+        elif node.kind == 2 and node.mcp_tool_id and node.mcp_tool_id not in mcp_tools:
+            mcp_tools.append(node.mcp_tool_id)
     return {
         "intents": [{"code": n.intent_code, "name": n.name, "score": s, "kind": n.kind} for n, s in resolved],
         "collections": collections,
-        "use_global": not collections,
+        "mcp_tools": mcp_tools,
+        "use_global": not collections and not mcp_tools,
     }
