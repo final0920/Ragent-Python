@@ -8,7 +8,7 @@ import jieba
 from sqlalchemy import text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.chunk import fixed_size_chunk
+from app.core.chunk import chunk_text
 from app.infra import clients
 from app.models import KnowledgeChunk, KnowledgeVector
 from app.utils import gen_id
@@ -24,9 +24,10 @@ async def ingest_text(
     doc_id: str,
     collection: str,
     text: str,
+    strategy: str = "fixed_size",
 ) -> int:
     """切分文本并写入 knowledge_chunk / knowledge_vector，返回写入块数。"""
-    chunks = fixed_size_chunk(text)
+    chunks = chunk_text(text, strategy=strategy)
     if not chunks:
         return 0
 

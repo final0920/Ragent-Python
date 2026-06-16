@@ -45,3 +45,47 @@ def fixed_size_chunk(text: str, size: int = 512, overlap: int = 128) -> list[str
         # 下一块起点回退 overlap，制造重叠
         start = max(end - overlap, start + 1)
     return chunks
+
+
+def structure_aware_chunk(
+    text: str, target: int = 1400, max_size: int = 1800, min_size: int = 600
+) -> list[str]:
+    """结构感知分块(Markdown 友好)：按块(段落/标题)贪心打包到 target 附近。
+
+    超长单块回退定长切；过小尾块并入上一块。
+    """
+    if not text or not text.strip():
+        return []
+    blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
+    chunks: list[str] = []
+    buf = ""
+    for b in blocks:
+        if len(b) > max_size:  # 超长块单独定长切
+            if buf:
+                chunks.append(buf)
+                buf = ""
+            chunks.extend(fixed_size_chunk(b, size=max_size, overlap=0))
+            continue
+        candidate = f"{buf}\n\n{b}" if buf else b
+        if len(candidate) <= max_size:
+            buf = candidate
+            if len(buf) >= target:
+                chunks.append(buf)
+                buf = ""
+        else:
+            if buf:
+                chunks.append(buf)
+            buf = b
+    if buf:
+        if chunks and len(buf) < min_size and len(chunks[-1]) + len(buf) <= max_size:
+            chunks[-1] = chunks[-1] + "\n\n" + buf
+        else:
+            chunks.append(buf)
+    return chunks
+
+
+def chunk_text(text: str, strategy: str = "fixed_size", size: int = 512, overlap: int = 128) -> list[str]:
+    """按策略分发分块。strategy: fixed_size | structure_aware。"""
+    if strategy == "structure_aware":
+        return structure_aware_chunk(text)
+    return fixed_size_chunk(text, size=size, overlap=overlap)
