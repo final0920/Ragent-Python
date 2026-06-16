@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.local
+*.log
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+node_modules/
+frontend/dist/
+.omc/
+.DS_Store
+uploads/
