@@ -1,4 +1,4 @@
--- Ragent Python MVP 建表（PostgreSQL + pgvector）。维度 1536。
+-- Ragent Python MVP 建表（PostgreSQL + pgvector）。维度 1024(bge-m3)。
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS knowledge_base (
@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_chunk_hash ON knowledge_chunk(content_hash);
 CREATE TABLE IF NOT EXISTS knowledge_vector (
   id VARCHAR(64) PRIMARY KEY,
   content TEXT NOT NULL,
-  embedding vector(1536),
+  embedding vector(1024),
   metadata JSONB DEFAULT '{}'::jsonb,
   content_tsv tsvector
 );

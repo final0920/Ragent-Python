@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     embedding_base_url: str = "http://127.0.0.1:11434/v1"
     embedding_api_key: str = ""
     embedding_model: str = "bge-m3"
-    embedding_dim: int = 1536
+    embedding_dim: int = 1024  # bge-m3=1024；换 1536 维模型(如 qwen-emb)需同步改 schema
     rerank_enabled: bool = False
     rerank_base_url: str = ""
     rerank_api_key: str = ""
