@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, Query
 from sse_starlette.sse import EventSourceResponse
 
+from app.core.ratelimit import acquire, release
 from app.db import SessionLocal
 from app.graph.pipeline import stream_chat
 from app.utils import gen_id
@@ -36,6 +37,12 @@ async def rag_chat(
 
     async def gen() -> AsyncIterator[dict]:
         yield _sse("meta", {"taskId": task_id, "conversationId": cid})
+        # 排队准入:并发满且等待超时 -> 拒绝
+        if not await acquire(task_id):
+            yield _sse("reject", {"reason": "系统繁忙,请稍后再试"})
+            yield _sse("done", {})
+            _CANCELS.pop(task_id, None)
+            return
         try:
             async with SessionLocal() as session:
                 async for item in stream_chat(session, cid, question, collection):
@@ -46,6 +53,7 @@ async def rag_chat(
         except Exception as exc:  # noqa: BLE001
             yield _sse("error", {"message": str(exc)[:200]})
         finally:
+            await release(task_id)
             _CANCELS.pop(task_id, None)
 
     return EventSourceResponse(gen())
