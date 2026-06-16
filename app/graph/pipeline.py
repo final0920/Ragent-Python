@@ -14,6 +14,7 @@ from langgraph.graph import END, START, StateGraph
 from sqlalchemy import select
 
 from app.config import settings
+from app.core import guidance as guidance_mod
 from app.core import intent as intent_mod
 from app.core import mcp as mcp_mod
 from app.core import memory as memory_mod
@@ -40,6 +41,7 @@ class ChatState(TypedDict, total=False):
     rewrite: str
     sub_questions: list[str]
     intents: list[dict]
+    clarify: str
     collections: list[str]
     mcp_tools: list[str]
     mcp_context: str
@@ -89,7 +91,14 @@ async def _resolve_intents(state: ChatState) -> ChatState:
     }
 
 
+async def _guidance(state: ChatState) -> ChatState:
+    clarify = guidance_mod.detect(state.get("intents") or [], state.get("sub_questions") or [])
+    return {"clarify": clarify or ""}
+
+
 async def _mcp_tools(state: ChatState) -> ChatState:
+    if state.get("clarify"):
+        return {"mcp_context": ""}
     tools = state.get("mcp_tools") or []
     if not tools:
         return {"mcp_context": ""}
@@ -114,6 +123,8 @@ async def _retrieve_one(session, query: str, collection: str) -> list[RetrievedC
 
 
 async def _retrieve(state: ChatState) -> ChatState:
+    if state.get("clarify"):
+        return {"chunks": []}
     session = state["session"]
     # 显式指定 > 意图定向 > 全局默认
     if state.get("collection"):
@@ -160,13 +171,15 @@ def build_graph():
     g.add_node("load_memory", _load_memory)
     g.add_node("rewrite", _rewrite)
     g.add_node("resolve_intents", _resolve_intents)
+    g.add_node("guidance", _guidance)
     g.add_node("mcp_tools", _mcp_tools)
     g.add_node("retrieve", _retrieve)
     g.add_node("build_prompt", _build_prompt)
     g.add_edge(START, "load_memory")
     g.add_edge("load_memory", "rewrite")
     g.add_edge("rewrite", "resolve_intents")
-    g.add_edge("resolve_intents", "mcp_tools")
+    g.add_edge("resolve_intents", "guidance")
+    g.add_edge("guidance", "mcp_tools")
     g.add_edge("mcp_tools", "retrieve")
     g.add_edge("retrieve", "build_prompt")
     g.add_edge("build_prompt", END)
@@ -195,6 +208,16 @@ async def stream_chat(
             "intents": state.get("intents") or [],
         },
     }
+
+    # 歧义澄清:直接回澄清问题,不调用 LLM
+    if state.get("clarify"):
+        clarify = state["clarify"]
+        yield {"event": "message", "data": {"type": "response", "content": clarify}}
+        session.add(Message(id=gen_id(), conversation_id=conversation_id, role="assistant", content=clarify))
+        await session.commit()
+        yield {"event": "finish", "data": {"length": len(clarify), "clarify": True}}
+        yield {"event": "done", "data": {}}
+        return
 
     answer_parts: list[str] = []
     async for ev in clients.chat_stream(state["messages"]):

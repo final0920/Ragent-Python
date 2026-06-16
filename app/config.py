@@ -57,6 +57,15 @@ class Settings(BaseSettings):
     mcp_enabled: bool = False
     mcp_server_url: str = "http://127.0.0.1:9099/mcp"
 
+    # 歧义澄清(guidance)
+    rag_guidance_enabled: bool = True
+    rag_guidance_ratio: float = 0.8     # 次高/最高 >= 此值
+    rag_guidance_margin: float = 0.15   # 且 最高-次高 < 此值 -> 触发澄清
+
+    # 定时同步
+    schedule_enabled: bool = False
+    schedule_scan_seconds: int = 60
+
     # P1 多模型路由 + 熔断
     # 备选模型(JSON 数组)，每项 {model, base_url?, api_key?, provider?, priority?}；缺省继承主模型。
     llm_fallbacks: str = ""

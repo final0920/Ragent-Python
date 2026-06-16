@@ -41,6 +41,9 @@ class KnowledgeDocument(TimestampMixin, Base):
     file_type: Mapped[str] = mapped_column(String(64), default="")
     file_size: Mapped[int] = mapped_column(BigInteger, default=0)
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    schedule_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    schedule_cron: Mapped[str] = mapped_column(String(64), default="")
+    last_hash: Mapped[str] = mapped_column(String(64), default="")
 
 
 class KnowledgeChunk(TimestampMixin, Base):
@@ -90,6 +93,14 @@ class ConversationSummary(TimestampMixin, Base):
     conversation_id: Mapped[str] = mapped_column(String(64), index=True)
     content: Mapped[str] = mapped_column(Text, default="")
     last_message_id: Mapped[str] = mapped_column(String(64), default="")
+
+
+class AppUser(TimestampMixin, Base):
+    __tablename__ = "app_user"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    username: Mapped[str] = mapped_column(String(128), unique=True)
+    password: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(16), default="user")
 
 
 class IntentNode(TimestampMixin, Base):

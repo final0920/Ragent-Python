@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS knowledge_document (
   file_type VARCHAR(64) DEFAULT '',
   file_size BIGINT DEFAULT 0,
   chunk_count INT DEFAULT 0,
+  schedule_enabled BOOLEAN DEFAULT FALSE,
+  schedule_cron VARCHAR(64) DEFAULT '',
+  last_hash VARCHAR(64) DEFAULT '',
   deleted BOOLEAN DEFAULT FALSE,
   create_time TIMESTAMPTZ DEFAULT now(),
   update_time TIMESTAMPTZ DEFAULT now()
@@ -117,3 +120,17 @@ CREATE TABLE IF NOT EXISTS intent_node (
   update_time TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_intent_level ON intent_node(level);
+
+-- 用户(JWT 鉴权)。password 兼容明文(种子)或 bcrypt 哈希($2 开头)。
+CREATE TABLE IF NOT EXISTS app_user (
+  id VARCHAR(64) PRIMARY KEY,
+  username VARCHAR(128) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  role VARCHAR(16) DEFAULT 'user',
+  deleted BOOLEAN DEFAULT FALSE,
+  create_time TIMESTAMPTZ DEFAULT now(),
+  update_time TIMESTAMPTZ DEFAULT now()
+);
+INSERT INTO app_user (id, username, password, role)
+VALUES ('seed-admin', 'admin', 'admin', 'admin')
+ON CONFLICT (username) DO NOTHING;
