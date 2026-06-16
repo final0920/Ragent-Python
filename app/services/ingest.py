@@ -28,6 +28,17 @@ async def ingest_text(
 ) -> int:
     """切分文本并写入 knowledge_chunk / knowledge_vector，返回写入块数。"""
     chunks = chunk_text(text, strategy=strategy)
+    return await ingest_chunks(session, kb_id, doc_id, collection, chunks)
+
+
+async def ingest_chunks(
+    session: AsyncSession,
+    kb_id: str,
+    doc_id: str,
+    collection: str,
+    chunks: list[str],
+) -> int:
+    """对已切好的分块做向量化并写入 chunk/vector(+tsv)，返回写入块数。"""
     if not chunks:
         return 0
 

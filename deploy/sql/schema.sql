@@ -134,3 +134,32 @@ CREATE TABLE IF NOT EXISTS app_user (
 INSERT INTO app_user (id, username, password, role)
 VALUES ('seed-admin', 'admin', 'admin', 'admin')
 ON CONFLICT (username) DO NOTHING;
+
+-- 摄取编排流水线:节点链(source -> chunk -> index)。
+CREATE TABLE IF NOT EXISTS ingestion_pipeline (
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  deleted BOOLEAN DEFAULT FALSE,
+  create_time TIMESTAMPTZ DEFAULT now(),
+  update_time TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS ingestion_pipeline_node (
+  id VARCHAR(64) PRIMARY KEY,
+  pipeline_id VARCHAR(64) NOT NULL,
+  node_type VARCHAR(32) NOT NULL,     -- source | chunk | index
+  node_order INT DEFAULT 0,
+  settings JSONB DEFAULT '{}'::jsonb,
+  create_time TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pnode_pipe ON ingestion_pipeline_node(pipeline_id);
+CREATE TABLE IF NOT EXISTS ingestion_task (
+  id VARCHAR(64) PRIMARY KEY,
+  pipeline_id VARCHAR(64) NOT NULL,
+  kb_id VARCHAR(64) DEFAULT '',
+  doc_id VARCHAR(64) DEFAULT '',
+  status VARCHAR(32) DEFAULT 'pending',
+  chunk_count INT DEFAULT 0,
+  error TEXT DEFAULT '',
+  create_time TIMESTAMPTZ DEFAULT now(),
+  update_time TIMESTAMPTZ DEFAULT now()
+);

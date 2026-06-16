@@ -95,6 +95,32 @@ class ConversationSummary(TimestampMixin, Base):
     last_message_id: Mapped[str] = mapped_column(String(64), default="")
 
 
+class IngestionPipeline(TimestampMixin, Base):
+    __tablename__ = "ingestion_pipeline"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+
+
+class IngestionPipelineNode(Base):
+    __tablename__ = "ingestion_pipeline_node"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    pipeline_id: Mapped[str] = mapped_column(String(64), index=True)
+    node_type: Mapped[str] = mapped_column(String(32))  # source | chunk | index
+    node_order: Mapped[int] = mapped_column(Integer, default=0)
+    settings: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class IngestionTask(TimestampMixin, Base):
+    __tablename__ = "ingestion_task"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    pipeline_id: Mapped[str] = mapped_column(String(64), index=True)
+    kb_id: Mapped[str] = mapped_column(String(64), default="")
+    doc_id: Mapped[str] = mapped_column(String(64), default="")
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str] = mapped_column(Text, default="")
+
+
 class AppUser(TimestampMixin, Base):
     __tablename__ = "app_user"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
