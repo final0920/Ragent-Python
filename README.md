@@ -52,6 +52,14 @@ npm run build      # 产物 frontend/dist
 
 页面：智能问答（SSE 流式 + 停止 + 引用/意图展示）、知识库（建库/列表/上传）、意图树（叶子意图增查）。
 
+## P1 多模型路由 + 熔断
+
+chat / chat_stream 走多模型路由：按优先级 failover、流式首包探测(60s 超时判活)、三态熔断（连续失败 2 次→OPEN 30s→HALF_OPEN 放行 1 探测）。
+
+- 配主+备模型：`.env` 的 `LLM_FALLBACKS`（JSON 数组，缺省字段继承主模型）。
+- 查看候选与熔断状态：`GET /api/ragent/rag/models`。
+- 主模型挂了自动切备用；恢复后探测回 CLOSED。embed/rerank 保持单模型+重试。
+
 ## P8 MCP 工具调用
 
 知识库答不了的问题可路由到 MCP 工具查实时数据。默认关闭，开启步骤：

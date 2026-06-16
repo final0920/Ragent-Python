@@ -58,3 +58,17 @@ async def rag_stop(taskId: str = Query(...)) -> dict:
         ev.set()
         return {"stopped": True}
     return {"stopped": False}
+
+
+@router.get("/rag/models")
+async def rag_models() -> dict:
+    """候选模型(按优先级) + 熔断状态。"""
+    from app.infra import router as model_router
+
+    return {
+        "candidates": [
+            {"model": c.model, "provider": c.provider, "priority": c.priority, "base_url": c.base_url}
+            for c in model_router._CANDIDATES
+        ],
+        "breaker": model_router.breaker.snapshot(),
+    }

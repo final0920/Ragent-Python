@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     mcp_enabled: bool = False
     mcp_server_url: str = "http://127.0.0.1:9099/mcp"
 
+    # P1 多模型路由 + 熔断
+    # 备选模型(JSON 数组)，每项 {model, base_url?, api_key?, provider?, priority?}；缺省继承主模型。
+    llm_fallbacks: str = ""
+    llm_first_packet_timeout: int = 60     # 流式首包探测(秒)
+    breaker_fail_threshold: int = 2        # 连续失败 N 次 -> OPEN
+    breaker_open_seconds: int = 30         # OPEN 持续(秒) -> HALF_OPEN
+
 
 @lru_cache
 def get_settings() -> Settings:

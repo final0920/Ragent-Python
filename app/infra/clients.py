@@ -5,12 +5,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 
 import httpx
 
 from app.config import settings
+from app.infra import router
 
 _TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
@@ -43,21 +45,12 @@ async def embed(texts: list[str]) -> list[list[float]]:
     return out
 
 
-async def chat_stream(
-    messages: list[dict], deep_thinking: bool = False
-) -> AsyncIterator[dict]:
-    """流式对话。yield {'type': 'response'|'think', 'content': str}。"""
-    url = settings.llm_base_url.rstrip("/") + "/chat/completions"
-    payload = {
-        "model": settings.llm_chat_model,
-        "messages": messages,
-        "stream": True,
-        "temperature": 0.3,
-    }
+async def _stream_one(cand, messages: list[dict]) -> AsyncIterator[dict]:
+    """对单个候选模型做流式调用，yield {'type','content'}。"""
+    url = cand.base_url.rstrip("/") + "/chat/completions"
+    payload = {"model": cand.model, "messages": messages, "stream": True, "temperature": 0.3}
     async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
-        async with client.stream(
-            "POST", url, json=payload, headers=_headers(settings.llm_api_key)
-        ) as resp:
+        async with client.stream("POST", url, json=payload, headers=_headers(cand.api_key)) as resp:
             resp.raise_for_status()
             async for line in resp.aiter_lines():
                 if not line or not line.startswith("data:"):
@@ -76,18 +69,55 @@ async def chat_stream(
                     yield {"type": "response", "content": delta["content"]}
 
 
-async def chat(messages: list[dict], temperature: float = 0.1) -> str:
-    """非流式对话，返回完整文本（用于摘要、意图打分等内部调用）。"""
-    url = settings.llm_base_url.rstrip("/") + "/chat/completions"
-    payload = {
-        "model": settings.llm_chat_model,
-        "messages": messages,
-        "stream": False,
-        "temperature": temperature,
-    }
+async def chat_stream(
+    messages: list[dict], deep_thinking: bool = False
+) -> AsyncIterator[dict]:
+    """流式对话：按优先级 failover + 首包探测(超时判活)。yield {'type','content'}。"""
+    for cand in router.ordered_allowed():
+        gen = _stream_one(cand, messages)
+        try:
+            first = await asyncio.wait_for(gen.__anext__(), timeout=settings.llm_first_packet_timeout)
+        except StopAsyncIteration:
+            router.breaker.record_failure(cand.key)  # 空流视为失败
+            continue
+        except Exception:
+            router.breaker.record_failure(cand.key)
+            await gen.aclose()
+            continue
+        # 拿到首包 -> 该候选可用
+        router.breaker.record_success(cand.key)
+        yield first
+        try:
+            async for ev in gen:
+                yield ev
+        except Exception:
+            pass  # 中途断流无法干净 failover，直接结束
+        finally:
+            await gen.aclose()
+        return
+    yield {"type": "response", "content": "[所有模型暂不可用]"}
+
+
+async def _chat_one(cand, messages: list[dict], temperature: float) -> str:
+    url = cand.base_url.rstrip("/") + "/chat/completions"
+    payload = {"model": cand.model, "messages": messages, "stream": False, "temperature": temperature}
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        data = await _post_json(client, url, payload, settings.llm_api_key)
+        data = await _post_json(client, url, payload, cand.api_key, retries=0)
     return (data.get("choices") or [{}])[0].get("message", {}).get("content", "") or ""
+
+
+async def chat(messages: list[dict], temperature: float = 0.1) -> str:
+    """非流式对话：按优先级 failover + 熔断。用于摘要、意图打分、参数抽取等。"""
+    last: Exception | None = None
+    for cand in router.ordered_allowed():
+        try:
+            text = await _chat_one(cand, messages, temperature)
+            router.breaker.record_success(cand.key)
+            return text
+        except Exception as exc:  # noqa: BLE001
+            last = exc
+            router.breaker.record_failure(cand.key)
+    raise RuntimeError(f"所有模型不可用: {last}")
 
 
 async def rerank(query: str, docs: list[str]) -> list[float]:
