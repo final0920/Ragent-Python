@@ -76,6 +76,20 @@ async def chat_stream(
                     yield {"type": "response", "content": delta["content"]}
 
 
+async def chat(messages: list[dict], temperature: float = 0.1) -> str:
+    """非流式对话，返回完整文本（用于摘要、意图打分等内部调用）。"""
+    url = settings.llm_base_url.rstrip("/") + "/chat/completions"
+    payload = {
+        "model": settings.llm_chat_model,
+        "messages": messages,
+        "stream": False,
+        "temperature": temperature,
+    }
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        data = await _post_json(client, url, payload, settings.llm_api_key)
+    return (data.get("choices") or [{}])[0].get("message", {}).get("content", "") or ""
+
+
 async def rerank(query: str, docs: list[str]) -> list[float]:
     """返回与 docs 对齐的相关性分数；未启用或失败返回 []（调用方回退）。"""
     if not settings.rerank_enabled or not settings.rerank_base_url or not docs:

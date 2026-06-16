@@ -82,3 +82,29 @@ class Message(TimestampMixin, Base):
     content: Mapped[str] = mapped_column(Text)
     thinking_content: Mapped[str] = mapped_column(Text, default="")
     thinking_duration: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ConversationSummary(TimestampMixin, Base):
+    __tablename__ = "conversation_summary"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(String(64), index=True)
+    content: Mapped[str] = mapped_column(Text, default="")
+    last_message_id: Mapped[str] = mapped_column(String(64), default="")
+
+
+class IntentNode(TimestampMixin, Base):
+    __tablename__ = "intent_node"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    kb_id: Mapped[str] = mapped_column(String(64), default="")
+    intent_code: Mapped[str] = mapped_column(String(128))
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text, default="")
+    examples: Mapped[str] = mapped_column(Text, default="")
+    level: Mapped[int] = mapped_column(Integer, default=2)
+    parent_code: Mapped[str] = mapped_column(String(128), default="")
+    kind: Mapped[int] = mapped_column(Integer, default=0)  # 0 KB / 1 SYSTEM / 2 MCP
+    collection_name: Mapped[str] = mapped_column(String(128), default="")
+    mcp_tool_id: Mapped[str] = mapped_column(String(128), default="")
+    topk: Mapped[int] = mapped_column(Integer, default=10)
+    prompt_template: Mapped[str] = mapped_column(Text, default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)

@@ -83,3 +83,37 @@ CREATE TABLE IF NOT EXISTS message (
   update_time TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_msg_conv ON message(conversation_id);
+
+-- P4 记忆摘要：长对话压缩水位线
+CREATE TABLE IF NOT EXISTS conversation_summary (
+  id VARCHAR(64) PRIMARY KEY,
+  conversation_id VARCHAR(64) NOT NULL,
+  content TEXT DEFAULT '',
+  last_message_id VARCHAR(64) DEFAULT '',
+  deleted BOOLEAN DEFAULT FALSE,
+  create_time TIMESTAMPTZ DEFAULT now(),
+  update_time TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_summary_conv ON conversation_summary(conversation_id);
+
+-- P5 意图树：DOMAIN(0)/CATEGORY(1)/TOPIC(2 叶子打分)；kind 0=KB 1=SYSTEM 2=MCP
+CREATE TABLE IF NOT EXISTS intent_node (
+  id VARCHAR(64) PRIMARY KEY,
+  kb_id VARCHAR(64) DEFAULT '',
+  intent_code VARCHAR(128) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT DEFAULT '',
+  examples TEXT DEFAULT '',
+  level INT DEFAULT 2,
+  parent_code VARCHAR(128) DEFAULT '',
+  kind INT DEFAULT 0,
+  collection_name VARCHAR(128) DEFAULT '',
+  mcp_tool_id VARCHAR(128) DEFAULT '',
+  topk INT DEFAULT 10,
+  prompt_template TEXT DEFAULT '',
+  enabled BOOLEAN DEFAULT TRUE,
+  deleted BOOLEAN DEFAULT FALSE,
+  create_time TIMESTAMPTZ DEFAULT now(),
+  update_time TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_intent_level ON intent_node(level);

@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     rag_max_wait_seconds: int = 15
     rag_lease_seconds: int = 600
 
+    # P4 记忆摘要
+    rag_summary_enabled: bool = True
+    rag_summary_start_turns: int = 9
+    rag_summary_max_chars: int = 200
+
+    # P5 意图
+    rag_intent_min_score: float = 0.35     # 入选阈值
+    rag_intent_max_count: int = 3          # 封顶
+    rag_intent_directed_min: float = 0.4   # KB 叶子达到则定向检索其 collection
+
 
 @lru_cache
 def get_settings() -> Settings:
