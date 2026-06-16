@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 
+from app.core import terms as terms_mod
 from app.infra import clients
 
 
@@ -18,8 +19,16 @@ def _extract_json_obj(text: str) -> dict:
         return {}
 
 
-async def rewrite_and_split(query: str, history: list[dict] | None = None) -> dict:
-    """返回 {'rewrite': str, 'sub_questions': [str]}。失败回退原问题。"""
+async def rewrite_and_split(query: str, history: list[dict] | None = None, session=None) -> dict:
+    """返回 {'rewrite': str, 'sub_questions': [str]}。失败回退原问题。
+
+    若给定 session,先按词典归一化 query(同义词->标准词)再做 LLM 改写。
+    """
+    if session is not None:
+        try:
+            query = await terms_mod.normalize(session, query)
+        except Exception:
+            pass
     hist = "\n".join(f"{m['role']}: {m['content']}" for m in (history or [])[-6:])
     prompt = [
         {

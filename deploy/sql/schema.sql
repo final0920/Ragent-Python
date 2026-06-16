@@ -163,3 +163,60 @@ CREATE TABLE IF NOT EXISTS ingestion_task (
   create_time TIMESTAMPTZ DEFAULT now(),
   update_time TIMESTAMPTZ DEFAULT now()
 );
+
+-- 批次3:运营与可观测
+CREATE TABLE IF NOT EXISTS message_feedback (
+  id VARCHAR(64) PRIMARY KEY,
+  message_id VARCHAR(64) NOT NULL,
+  conversation_id VARCHAR(64) DEFAULT '',
+  vote INT DEFAULT 0,           -- 1 赞 / -1 踩
+  reason VARCHAR(255) DEFAULT '',
+  comment TEXT DEFAULT '',
+  deleted BOOLEAN DEFAULT FALSE,
+  create_time TIMESTAMPTZ DEFAULT now(),
+  update_time TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_fb_msg ON message_feedback(message_id);
+
+CREATE TABLE IF NOT EXISTS rag_trace_run (
+  id VARCHAR(64) PRIMARY KEY,
+  trace_id VARCHAR(64) NOT NULL,
+  conversation_id VARCHAR(64) DEFAULT '',
+  question TEXT DEFAULT '',
+  total_ms INT DEFAULT 0,
+  status VARCHAR(32) DEFAULT 'done',
+  create_time TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_trace_run_tid ON rag_trace_run(trace_id);
+
+CREATE TABLE IF NOT EXISTS rag_trace_node (
+  id VARCHAR(64) PRIMARY KEY,
+  trace_id VARCHAR(64) NOT NULL,
+  node_type VARCHAR(64) NOT NULL,
+  duration_ms INT DEFAULT 0,
+  node_order INT DEFAULT 0,
+  detail JSONB DEFAULT '{}'::jsonb,
+  create_time TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_trace_node_tid ON rag_trace_node(trace_id);
+
+CREATE TABLE IF NOT EXISTS query_term_mapping (
+  id VARCHAR(64) PRIMARY KEY,
+  domain VARCHAR(64) DEFAULT '',
+  source_term VARCHAR(255) NOT NULL,
+  target_term VARCHAR(255) NOT NULL,
+  match_type INT DEFAULT 1,     -- 1 精确
+  priority INT DEFAULT 100,
+  enabled BOOLEAN DEFAULT TRUE,
+  deleted BOOLEAN DEFAULT FALSE,
+  create_time TIMESTAMPTZ DEFAULT now(),
+  update_time TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS sample_question (
+  id VARCHAR(64) PRIMARY KEY,
+  content VARCHAR(512) NOT NULL,
+  enabled BOOLEAN DEFAULT TRUE,
+  deleted BOOLEAN DEFAULT FALSE,
+  create_time TIMESTAMPTZ DEFAULT now()
+);

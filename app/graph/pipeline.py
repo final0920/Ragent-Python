@@ -22,8 +22,10 @@ from app.core import retrieve as retrieve_mod
 from app.core import rewrite as rewrite_mod
 from app.core.types import RetrievedChunk
 from app.infra import clients
-from app.models import Conversation, KnowledgeBase, Message
+from app.models import Conversation, KnowledgeBase, Message, RagTraceNode, RagTraceRun
 from app.utils import gen_id
+
+import time as _time
 
 SYSTEM_PROMPT = (
     "你是企业知识库智能客服。仅依据提供的【知识库内容】回答；"
@@ -48,6 +50,8 @@ class ChatState(TypedDict, total=False):
     use_global: bool
     chunks: list[RetrievedChunk]
     messages: list[dict]
+    trace_id: str
+    _trace: list[dict]
 
 
 async def _default_collection(session) -> str | None:
@@ -71,7 +75,9 @@ async def _load_memory(state: ChatState) -> ChatState:
 
 async def _rewrite(state: ChatState) -> ChatState:
     try:
-        r = await rewrite_mod.rewrite_and_split(state["question"], state.get("history"))
+        r = await rewrite_mod.rewrite_and_split(
+            state["question"], state.get("history"), session=state["session"]
+        )
     except Exception:
         r = {"rewrite": state["question"], "sub_questions": [state["question"]]}
     return {"rewrite": r["rewrite"], "sub_questions": r["sub_questions"]}
@@ -166,15 +172,28 @@ async def _build_prompt(state: ChatState) -> ChatState:
     return {"messages": messages}
 
 
+def _timed(name: str, fn):
+    """计时包装:把节点耗时追加到 state['_trace'](同一 list 引用,跨节点累积)。"""
+    async def wrapper(state: ChatState) -> ChatState:
+        t0 = _time.monotonic()
+        result = await fn(state)
+        tr = state.get("_trace")
+        if tr is not None:
+            tr.append({"node_type": name, "duration_ms": int((_time.monotonic() - t0) * 1000)})
+        return result
+
+    return wrapper
+
+
 def build_graph():
     g = StateGraph(ChatState)
-    g.add_node("load_memory", _load_memory)
-    g.add_node("rewrite", _rewrite)
-    g.add_node("resolve_intents", _resolve_intents)
-    g.add_node("guidance", _guidance)
-    g.add_node("mcp_tools", _mcp_tools)
-    g.add_node("retrieve", _retrieve)
-    g.add_node("build_prompt", _build_prompt)
+    g.add_node("load_memory", _timed("load_memory", _load_memory))
+    g.add_node("rewrite", _timed("rewrite", _rewrite))
+    g.add_node("resolve_intents", _timed("resolve_intents", _resolve_intents))
+    g.add_node("guidance", _timed("guidance", _guidance))
+    g.add_node("mcp_tools", _timed("mcp_tools", _mcp_tools))
+    g.add_node("retrieve", _timed("retrieve", _retrieve))
+    g.add_node("build_prompt", _timed("build_prompt", _build_prompt))
     g.add_edge(START, "load_memory")
     g.add_edge("load_memory", "rewrite")
     g.add_edge("rewrite", "resolve_intents")
@@ -197,13 +216,19 @@ async def stream_chat(
     session.add(Message(id=gen_id(), conversation_id=conversation_id, role="user", content=question))
     await session.commit()
 
+    trace_id = gen_id()
+    trace: list[dict] = []
     state = await _GRAPH.ainvoke(
-        {"session": session, "conversation_id": conversation_id, "question": question, "collection": collection}
+        {
+            "session": session, "conversation_id": conversation_id, "question": question,
+            "collection": collection, "trace_id": trace_id, "_trace": trace,
+        }
     )
     yield {
         "event": "meta",
         "data": {
             "conversationId": conversation_id,
+            "traceId": trace_id,
             "chunks": len(state.get("chunks") or []),
             "intents": state.get("intents") or [],
         },
@@ -215,21 +240,25 @@ async def stream_chat(
         yield {"event": "message", "data": {"type": "response", "content": clarify}}
         session.add(Message(id=gen_id(), conversation_id=conversation_id, role="assistant", content=clarify))
         await session.commit()
+        await _persist_trace(session, trace_id, conversation_id, question, trace)
         yield {"event": "finish", "data": {"length": len(clarify), "clarify": True}}
         yield {"event": "done", "data": {}}
         return
 
     answer_parts: list[str] = []
+    _t0 = _time.monotonic()
     async for ev in clients.chat_stream(state["messages"]):
         if ev["type"] == "response":
             answer_parts.append(ev["content"])
             yield {"event": "message", "data": {"type": "response", "content": ev["content"]}}
         elif ev["type"] == "think":
             yield {"event": "message", "data": {"type": "think", "content": ev["content"]}}
+    trace.append({"node_type": "stream_llm", "duration_ms": int((_time.monotonic() - _t0) * 1000)})
 
     answer = "".join(answer_parts)
     session.add(Message(id=gen_id(), conversation_id=conversation_id, role="assistant", content=answer))
     await session.commit()
+    await _persist_trace(session, trace_id, conversation_id, question, trace)
 
     # P4：生成后增量压缩记忆
     try:
@@ -239,6 +268,23 @@ async def stream_chat(
 
     yield {"event": "finish", "data": {"length": len(answer)}}
     yield {"event": "done", "data": {}}
+
+
+async def _persist_trace(session, trace_id: str, conversation_id: str, question: str, nodes: list[dict]) -> None:
+    try:
+        total = sum(n.get("duration_ms", 0) for n in nodes)
+        session.add(RagTraceRun(
+            id=gen_id(), trace_id=trace_id, conversation_id=conversation_id,
+            question=question[:500], total_ms=total, status="done",
+        ))
+        for i, n in enumerate(nodes):
+            session.add(RagTraceNode(
+                id=gen_id(), trace_id=trace_id, node_type=n["node_type"],
+                duration_ms=n.get("duration_ms", 0), node_order=i,
+            ))
+        await session.commit()
+    except Exception:
+        await session.rollback()
 
 
 async def _ensure_conversation(session, conversation_id: str) -> None:

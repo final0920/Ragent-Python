@@ -7,7 +7,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, chat, conversation, health, ingestion, intent, knowledge
+from app.api import (
+    auth,
+    chat,
+    conversation,
+    dashboard,
+    feedback,
+    health,
+    ingestion,
+    intent,
+    knowledge,
+    mapping,
+    sample,
+    trace,
+)
 from app.api import eval as eval_api
 from app.config import settings
 from app.core.schedule import start_scheduler, stop_scheduler
@@ -36,6 +49,11 @@ app.include_router(knowledge.router, prefix=settings.app_context_path)
 app.include_router(conversation.router, prefix=settings.app_context_path)
 app.include_router(intent.router, prefix=settings.app_context_path)
 app.include_router(ingestion.router, prefix=settings.app_context_path)
+app.include_router(feedback.router, prefix=settings.app_context_path)
+app.include_router(trace.router, prefix=settings.app_context_path)
+app.include_router(dashboard.router, prefix=settings.app_context_path)
+app.include_router(mapping.router, prefix=settings.app_context_path)
+app.include_router(sample.router, prefix=settings.app_context_path)
 app.include_router(eval_api.router, prefix=settings.app_context_path)
 app.include_router(chat.router, prefix=settings.app_context_path)
 

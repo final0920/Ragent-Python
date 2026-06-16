@@ -121,6 +121,54 @@ class IngestionTask(TimestampMixin, Base):
     error: Mapped[str] = mapped_column(Text, default="")
 
 
+class MessageFeedback(TimestampMixin, Base):
+    __tablename__ = "message_feedback"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    message_id: Mapped[str] = mapped_column(String(64), index=True)
+    conversation_id: Mapped[str] = mapped_column(String(64), default="")
+    vote: Mapped[int] = mapped_column(Integer, default=0)
+    reason: Mapped[str] = mapped_column(String(255), default="")
+    comment: Mapped[str] = mapped_column(Text, default="")
+
+
+class RagTraceRun(Base):
+    __tablename__ = "rag_trace_run"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    trace_id: Mapped[str] = mapped_column(String(64), index=True)
+    conversation_id: Mapped[str] = mapped_column(String(64), default="")
+    question: Mapped[str] = mapped_column(Text, default="")
+    total_ms: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(32), default="done")
+
+
+class RagTraceNode(Base):
+    __tablename__ = "rag_trace_node"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    trace_id: Mapped[str] = mapped_column(String(64), index=True)
+    node_type: Mapped[str] = mapped_column(String(64))
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    node_order: Mapped[int] = mapped_column(Integer, default=0)
+    detail: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class QueryTermMapping(TimestampMixin, Base):
+    __tablename__ = "query_term_mapping"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    domain: Mapped[str] = mapped_column(String(64), default="")
+    source_term: Mapped[str] = mapped_column(String(255))
+    target_term: Mapped[str] = mapped_column(String(255))
+    match_type: Mapped[int] = mapped_column(Integer, default=1)
+    priority: Mapped[int] = mapped_column(Integer, default=100)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class SampleQuestion(Base):
+    __tablename__ = "sample_question"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    content: Mapped[str] = mapped_column(String(512))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class AppUser(TimestampMixin, Base):
     __tablename__ = "app_user"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
