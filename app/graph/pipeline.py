@@ -18,6 +18,7 @@ from app.core import intent as intent_mod
 from app.core import mcp as mcp_mod
 from app.core import memory as memory_mod
 from app.core import retrieve as retrieve_mod
+from app.core import rewrite as rewrite_mod
 from app.core.types import RetrievedChunk
 from app.infra import clients
 from app.models import Conversation, KnowledgeBase, Message
@@ -36,6 +37,8 @@ class ChatState(TypedDict, total=False):
     collection: str | None
     summary: str
     history: list[dict]
+    rewrite: str
+    sub_questions: list[str]
     intents: list[dict]
     collections: list[str]
     mcp_tools: list[str]
@@ -64,9 +67,18 @@ async def _load_memory(state: ChatState) -> ChatState:
     return {"summary": summary, "history": history}
 
 
-async def _resolve_intents(state: ChatState) -> ChatState:
+async def _rewrite(state: ChatState) -> ChatState:
     try:
-        r = await intent_mod.route(state["session"], state["question"])
+        r = await rewrite_mod.rewrite_and_split(state["question"], state.get("history"))
+    except Exception:
+        r = {"rewrite": state["question"], "sub_questions": [state["question"]]}
+    return {"rewrite": r["rewrite"], "sub_questions": r["sub_questions"]}
+
+
+async def _resolve_intents(state: ChatState) -> ChatState:
+    query = state.get("rewrite") or state["question"]
+    try:
+        r = await intent_mod.route(state["session"], query)
     except Exception:
         r = {"intents": [], "collections": [], "use_global": True}
     return {
@@ -102,7 +114,7 @@ async def _retrieve_one(session, query: str, collection: str) -> list[RetrievedC
 
 
 async def _retrieve(state: ChatState) -> ChatState:
-    session, query = state["session"], state["question"]
+    session = state["session"]
     # 显式指定 > 意图定向 > 全局默认
     if state.get("collection"):
         targets = [state["collection"]]
@@ -115,12 +127,15 @@ async def _retrieve(state: ChatState) -> ChatState:
     if not targets:
         return {"chunks": []}
 
+    # 子问题驱动:每个子问题 × 每个 collection,合并去重保最高分
+    queries = state.get("sub_questions") or [state.get("rewrite") or state["question"]]
     merged: dict[str, RetrievedChunk] = {}
-    for col in targets:
-        for c in await _retrieve_one(session, query, col):
-            cur = merged.get(c.id)
-            if cur is None or c.score > cur.score:
-                merged[c.id] = c
+    for q in queries:
+        for col in targets:
+            for c in await _retrieve_one(session, q, col):
+                cur = merged.get(c.id)
+                if cur is None or c.score > cur.score:
+                    merged[c.id] = c
     chunks = sorted(merged.values(), key=lambda c: -c.score)[: settings.rag_rerank_topn]
     return {"chunks": chunks}
 
@@ -143,12 +158,14 @@ async def _build_prompt(state: ChatState) -> ChatState:
 def build_graph():
     g = StateGraph(ChatState)
     g.add_node("load_memory", _load_memory)
+    g.add_node("rewrite", _rewrite)
     g.add_node("resolve_intents", _resolve_intents)
     g.add_node("mcp_tools", _mcp_tools)
     g.add_node("retrieve", _retrieve)
     g.add_node("build_prompt", _build_prompt)
     g.add_edge(START, "load_memory")
-    g.add_edge("load_memory", "resolve_intents")
+    g.add_edge("load_memory", "rewrite")
+    g.add_edge("rewrite", "resolve_intents")
     g.add_edge("resolve_intents", "mcp_tools")
     g.add_edge("mcp_tools", "retrieve")
     g.add_edge("retrieve", "build_prompt")
