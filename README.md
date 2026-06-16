@@ -41,6 +41,17 @@ docker-compose.yml
 - `app/graph/pipeline.py`
   - `async def stream_chat(session, conversation_id: str, question: str) -> AsyncIterator[dict]`（LangGraph 编排，yield SSE 事件）
 
+## 前端（React 18 + Vite + TS + Zustand）
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173 （已代理 /api -> 后端 9090）
+npm run build      # 产物 frontend/dist
+```
+
+页面：智能问答（SSE 流式 + 停止 + 引用/意图展示）、知识库（建库/列表/上传）、意图树（叶子意图增查）。
+
 ## P9 RAGAS 评测
 
 ragas 为可选重依赖，单独装：`uv sync --group eval`。四段流程：
