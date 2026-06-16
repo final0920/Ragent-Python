@@ -2,22 +2,19 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Query
 from sse_starlette.sse import EventSourceResponse
 
+from app.core.cancel import registry as cancel_registry
 from app.core.ratelimit import acquire, release
 from app.db import SessionLocal
 from app.graph.pipeline import stream_chat
 from app.utils import gen_id
 
 router = APIRouter(tags=["chat"])
-
-# MVP：进程内取消注册表（taskId -> Event）。多节点需换 Redis pub/sub。
-_CANCELS: dict[str, asyncio.Event] = {}
 
 
 def _sse(event: str, data: dict) -> dict:
@@ -32,8 +29,7 @@ async def rag_chat(
 ):
     cid = conversationId or gen_id()
     task_id = gen_id()
-    cancel = asyncio.Event()
-    _CANCELS[task_id] = cancel
+    cancel = await cancel_registry.register(task_id)
 
     async def gen() -> AsyncIterator[dict]:
         yield _sse("meta", {"taskId": task_id, "conversationId": cid})
@@ -41,7 +37,7 @@ async def rag_chat(
         if not await acquire(task_id):
             yield _sse("reject", {"reason": "系统繁忙,请稍后再试"})
             yield _sse("done", {})
-            _CANCELS.pop(task_id, None)
+            cancel_registry.unregister(task_id)
             return
         try:
             async with SessionLocal() as session:
@@ -54,18 +50,15 @@ async def rag_chat(
             yield _sse("error", {"message": str(exc)[:200]})
         finally:
             await release(task_id)
-            _CANCELS.pop(task_id, None)
+            cancel_registry.unregister(task_id)
 
     return EventSourceResponse(gen())
 
 
 @router.post("/rag/v3/stop")
 async def rag_stop(taskId: str = Query(...)) -> dict:
-    ev = _CANCELS.get(taskId)
-    if ev:
-        ev.set()
-        return {"stopped": True}
-    return {"stopped": False}
+    ok = await cancel_registry.request_cancel(taskId)
+    return {"stopped": ok}
 
 
 @router.get("/rag/models")
