@@ -1,6 +1,6 @@
 // 用 fetch + ReadableStream 消费后端 SSE（事件帧：event:/data:）。
 import { useCallback, useRef, useState } from "react";
-import { CHAT_URL, api } from "../api";
+import { CHAT_URL, api, getToken } from "../api";
 
 export interface ChatMsg {
   role: "user" | "assistant";
@@ -51,9 +51,12 @@ export function useStreamChat() {
     abort.current = ctrl;
 
     try {
+      const headers: Record<string, string> = { Accept: "text/event-stream" };
+      const tok = getToken();
+      if (tok) headers.Authorization = `Bearer ${tok}`;
       const resp = await fetch(CHAT_URL(question, convId.current), {
         signal: ctrl.signal,
-        headers: { Accept: "text/event-stream" },
+        headers,
       });
       const reader = resp.body!.getReader();
       const decoder = new TextDecoder();
