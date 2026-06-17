@@ -69,6 +69,18 @@ class Settings(BaseSettings):
     # 会话自动标题
     rag_auto_title: bool = True
 
+    # S3/MinIO 对象存储(默认关闭)
+    s3_enabled: bool = False
+    s3_endpoint: str = "http://127.0.0.1:9000"
+    s3_bucket: str = "ragent"
+    s3_access_key: str = "minioadmin"
+    s3_secret_key: str = "minioadmin"
+    s3_region: str = "us-east-1"
+
+    # MQ 异步(Celery,默认关闭;broker 复用 Redis)
+    celery_enabled: bool = False
+    celery_broker: str = "redis://:123456@127.0.0.1:6379/1"
+
     # P1 多模型路由 + 熔断
     # 备选模型(JSON 数组)，每项 {model, base_url?, api_key?, provider?, priority?}；缺省继承主模型。
     llm_fallbacks: str = ""

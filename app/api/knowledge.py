@@ -11,7 +11,9 @@ from sqlalchemy import select
 from sqlalchemy import text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.db import get_session
+from app.infra import storage
 from app.models import KnowledgeBase, KnowledgeChunk, KnowledgeDocument
 from app.services.ingest import ingest_text
 from app.utils import gen_id
@@ -104,16 +106,30 @@ async def upload_doc(
     session.add(doc)
     await session.commit()
 
+    # 可选:原始文件存对象存储
+    if settings.s3_enabled:
+        key = await storage.upload(f"docs/{doc.id}/{file.filename or 'file'}", raw, file.content_type or "")
+        if key:
+            doc.file_url = key
+            await session.commit()
+
+    # 可选:Celery 异步分块入库,接口快速返回
+    if settings.celery_enabled:
+        from app.tasks import chunk_ingest_task
+
+        doc.status = "processing"
+        await session.commit()
+        chunk_ingest_task.delay(doc.id, kb_id, kb.collection_name, content, strategy)
+        return {"doc_id": doc.id, "chunk_count": 0, "status": "processing"}
+
     n = await ingest_text(
         session, kb_id=kb_id, doc_id=doc.id, collection=kb.collection_name,
         text=content, strategy=strategy,
     )
-
     doc.status = "done"
     doc.chunk_count = n
     await session.commit()
-
-    return {"doc_id": doc.id, "chunk_count": n}
+    return {"doc_id": doc.id, "chunk_count": n, "status": "done"}
 
 
 # ---------------- 文档管理 ----------------
@@ -187,6 +203,14 @@ async def set_schedule(doc_id: str, body: ScheduleBody, session: AsyncSession = 
         d.source_type = "url"
     await session.commit()
     return {"id": d.id, "schedule_enabled": d.schedule_enabled}
+
+
+@router.get("/knowledge-base/docs/{doc_id}/file")
+async def doc_file(doc_id: str, session: AsyncSession = Depends(get_session)) -> dict:
+    d = await _get_doc(session, doc_id)
+    if not d.file_url:
+        raise HTTPException(status_code=404, detail="无对象存储文件(未启用 S3 或纯文本摄取)")
+    return {"url": await storage.presigned(d.file_url)}
 
 
 @router.delete("/knowledge-base/docs/{doc_id}")
