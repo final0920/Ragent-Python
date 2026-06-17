@@ -259,6 +259,7 @@ async def stream_chat(
     session.add(Message(id=gen_id(), conversation_id=conversation_id, role="assistant", content=answer))
     await session.commit()
     await _persist_trace(session, trace_id, conversation_id, question, trace)
+    await _maybe_title(session, conversation_id, question)
 
     # P4：生成后增量压缩记忆
     try:
@@ -282,6 +283,30 @@ async def _persist_trace(session, trace_id: str, conversation_id: str, question:
                 id=gen_id(), trace_id=trace_id, node_type=n["node_type"],
                 duration_ms=n.get("duration_ms", 0), node_order=i,
             ))
+        await session.commit()
+    except Exception:
+        await session.rollback()
+
+
+async def _maybe_title(session, conversation_id: str, question: str) -> None:
+    """会话标题为空时,用 LLM 生成简短标题。"""
+    if not settings.rag_auto_title:
+        return
+    try:
+        conv = (
+            await session.execute(
+                select(Conversation).where(Conversation.conversation_id == conversation_id)
+            )
+        ).scalars().first()
+        if conv is None or conv.title:
+            return
+        title = await clients.chat(
+            [
+                {"role": "system", "content": "用不超过12个字概括这句话作为会话标题,只输出标题本身。"},
+                {"role": "user", "content": question},
+            ]
+        )
+        conv.title = (title or question)[:30].strip()
         await session.commit()
     except Exception:
         await session.rollback()

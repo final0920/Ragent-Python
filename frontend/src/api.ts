@@ -34,6 +34,10 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
   me: () => http<{ username: string; role: string }>("/user/me"),
+  listUsers: () => http<{ id: string; username: string; role: string }[]>("/users"),
+  createUser: (username: string, password: string, role = "user") =>
+    http("/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password, role }) }),
+  deleteUser: (id: string) => http(`/users/${id}`, { method: "DELETE" }),
 
   // 知识库 / 文档 / 分块
   listKnowledgeBases: () => http<KnowledgeBase[]>("/knowledge-base"),

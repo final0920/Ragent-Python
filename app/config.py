@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     schedule_enabled: bool = False
     schedule_scan_seconds: int = 60
 
+    # 会话自动标题
+    rag_auto_title: bool = True
+
     # P1 多模型路由 + 熔断
     # 备选模型(JSON 数组)，每项 {model, base_url?, api_key?, provider?, priority?}；缺省继承主模型。
     llm_fallbacks: str = ""

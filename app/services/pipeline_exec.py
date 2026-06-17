@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +12,7 @@ from app.core.chunk import chunk_text
 from app.models import (
     IngestionPipelineNode,
     IngestionTask,
+    IngestionTaskNode,
     KnowledgeBase,
     KnowledgeDocument,
 )
@@ -42,22 +45,32 @@ async def run_pipeline(
 
     ctx: dict = {"text": input_text, "chunks": None, "count": 0}
     try:
-        for node in nodes:
+        for idx, node in enumerate(nodes):
             s = node.settings or {}
+            _t = time.monotonic()
+            out = ""
             if node.node_type == "source":
                 if s.get("source_type") == "url" and s.get("location"):
                     async with httpx.AsyncClient(timeout=30) as c:
                         r = await c.get(s["location"])
                         r.raise_for_status()
                         ctx["text"] = r.text
+                out = f"{len(ctx['text'])} 字"
             elif node.node_type == "chunk":
                 ctx["chunks"] = chunk_text(
                     ctx["text"], strategy=s.get("strategy", "fixed_size"),
                     size=int(s.get("size", 512)), overlap=int(s.get("overlap", 128)),
                 )
+                out = f"{len(ctx['chunks'])} 块"
             elif node.node_type == "index":
                 chunks = ctx["chunks"] or chunk_text(ctx["text"])
                 ctx["count"] = await ingest_chunks(session, kb_id, doc.id, kb.collection_name, chunks)
+                out = f"入库 {ctx['count']} 块"
+            session.add(IngestionTaskNode(
+                id=gen_id(), task_id=task.id, node_type=node.node_type, node_order=idx,
+                status="done", output=out, duration_ms=int((time.monotonic() - _t) * 1000),
+            ))
+            await session.commit()
 
         n = ctx["count"]
         doc.status, doc.chunk_count = "done", n

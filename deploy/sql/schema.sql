@@ -164,6 +164,34 @@ CREATE TABLE IF NOT EXISTS ingestion_task (
   update_time TIMESTAMPTZ DEFAULT now()
 );
 
+-- 摄取任务节点(细粒度执行记录)
+CREATE TABLE IF NOT EXISTS ingestion_task_node (
+  id VARCHAR(64) PRIMARY KEY,
+  task_id VARCHAR(64) NOT NULL,
+  node_type VARCHAR(32) NOT NULL,
+  node_order INT DEFAULT 0,
+  status VARCHAR(32) DEFAULT 'pending',
+  output TEXT DEFAULT '',
+  duration_ms INT DEFAULT 0,
+  create_time TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_tasknode_task ON ingestion_task_node(task_id);
+
+-- 文档分块分阶段耗时日志
+CREATE TABLE IF NOT EXISTS document_chunk_log (
+  id VARCHAR(64) PRIMARY KEY,
+  doc_id VARCHAR(64) NOT NULL,
+  extract_ms INT DEFAULT 0,
+  chunk_ms INT DEFAULT 0,
+  embed_ms INT DEFAULT 0,
+  persist_ms INT DEFAULT 0,
+  total_ms INT DEFAULT 0,
+  chunk_count INT DEFAULT 0,
+  error TEXT DEFAULT '',
+  create_time TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_chunklog_doc ON document_chunk_log(doc_id);
+
 -- 批次3:运营与可观测
 CREATE TABLE IF NOT EXISTS message_feedback (
   id VARCHAR(64) PRIMARY KEY,

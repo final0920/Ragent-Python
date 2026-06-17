@@ -9,6 +9,7 @@ import IngestionPage from "./pages/IngestionPage";
 import TracePage from "./pages/TracePage";
 import MappingPage from "./pages/MappingPage";
 import SamplePage from "./pages/SamplePage";
+import UsersPage from "./pages/UsersPage";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const token = useAuth((s) => s.token);
@@ -26,6 +27,7 @@ const NAV = [
   { to: "/trace", label: "Trace" },
   { to: "/mapping", label: "词典" },
   { to: "/sample", label: "示例问题" },
+  { to: "/users", label: "用户" },
 ];
 
 function Shell({ children }: { children: JSX.Element }) {
@@ -68,6 +70,7 @@ export default function App() {
                 <Route path="/trace" element={<TracePage />} />
                 <Route path="/mapping" element={<MappingPage />} />
                 <Route path="/sample" element={<SamplePage />} />
+                <Route path="/users" element={<UsersPage />} />
               </Routes>
             </Shell>
           </RequireAuth>

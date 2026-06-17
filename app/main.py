@@ -20,6 +20,7 @@ from app.api import (
     mapping,
     sample,
     trace,
+    user,
 )
 from app.api import eval as eval_api
 from app.config import settings
@@ -45,6 +46,7 @@ app.add_middleware(
 # 统一前缀（对应原 /api/ragent）
 app.include_router(health.router, prefix=settings.app_context_path)
 app.include_router(auth.router, prefix=settings.app_context_path)
+app.include_router(user.router, prefix=settings.app_context_path)
 app.include_router(knowledge.router, prefix=settings.app_context_path)
 app.include_router(conversation.router, prefix=settings.app_context_path)
 app.include_router(intent.router, prefix=settings.app_context_path)

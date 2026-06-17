@@ -110,6 +110,30 @@ class IngestionPipelineNode(Base):
     settings: Mapped[dict] = mapped_column(JSONB, default=dict)
 
 
+class IngestionTaskNode(Base):
+    __tablename__ = "ingestion_task_node"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(64), index=True)
+    node_type: Mapped[str] = mapped_column(String(32))
+    node_order: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    output: Mapped[str] = mapped_column(Text, default="")
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class DocumentChunkLog(Base):
+    __tablename__ = "document_chunk_log"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    doc_id: Mapped[str] = mapped_column(String(64), index=True)
+    extract_ms: Mapped[int] = mapped_column(Integer, default=0)
+    chunk_ms: Mapped[int] = mapped_column(Integer, default=0)
+    embed_ms: Mapped[int] = mapped_column(Integer, default=0)
+    persist_ms: Mapped[int] = mapped_column(Integer, default=0)
+    total_ms: Mapped[int] = mapped_column(Integer, default=0)
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str] = mapped_column(Text, default="")
+
+
 class IngestionTask(TimestampMixin, Base):
     __tablename__ = "ingestion_task"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)

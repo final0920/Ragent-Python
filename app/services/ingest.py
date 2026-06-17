@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import time
 
 import jieba
 from sqlalchemy import text as sql_text
@@ -10,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.chunk import chunk_text
 from app.infra import clients
-from app.models import KnowledgeChunk, KnowledgeVector
+from app.models import DocumentChunkLog, KnowledgeChunk, KnowledgeVector
 from app.utils import gen_id
 
 
@@ -27,8 +28,10 @@ async def ingest_text(
     strategy: str = "fixed_size",
 ) -> int:
     """切分文本并写入 knowledge_chunk / knowledge_vector，返回写入块数。"""
+    t0 = time.monotonic()
     chunks = chunk_text(text, strategy=strategy)
-    return await ingest_chunks(session, kb_id, doc_id, collection, chunks)
+    chunk_ms = int((time.monotonic() - t0) * 1000)
+    return await ingest_chunks(session, kb_id, doc_id, collection, chunks, chunk_ms=chunk_ms)
 
 
 async def ingest_chunks(
@@ -37,17 +40,21 @@ async def ingest_chunks(
     doc_id: str,
     collection: str,
     chunks: list[str],
+    chunk_ms: int = 0,
 ) -> int:
-    """对已切好的分块做向量化并写入 chunk/vector(+tsv)，返回写入块数。"""
+    """对已切好的分块做向量化并写入 chunk/vector(+tsv)，返回写入块数;记录分阶段耗时。"""
     if not chunks:
         return 0
 
+    _t = time.monotonic()
     vectors = await clients.embed(chunks)
+    embed_ms = int((time.monotonic() - _t) * 1000)
     if len(vectors) != len(chunks):
         raise RuntimeError(
             f"embedding 数量({len(vectors)})与块数({len(chunks)})不一致"
         )
 
+    _t = time.monotonic()
     for i, content in enumerate(chunks):
         chunk_row = KnowledgeChunk(
             id=gen_id(),
@@ -83,4 +90,14 @@ async def ingest_chunks(
         )
 
     await session.commit()
+    persist_ms = int((time.monotonic() - _t) * 1000)
+    try:
+        session.add(DocumentChunkLog(
+            id=gen_id(), doc_id=doc_id, chunk_ms=chunk_ms, embed_ms=embed_ms,
+            persist_ms=persist_ms, total_ms=chunk_ms + embed_ms + persist_ms,
+            chunk_count=len(chunks),
+        ))
+        await session.commit()
+    except Exception:
+        await session.rollback()
     return len(chunks)
